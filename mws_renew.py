@@ -22,12 +22,18 @@ SESSION_TOKEN = os.environ.get("SESSION_TOKEN") or ""
 GH_TOKEN      = os.environ.get("GH_TOKEN") or ""
 TG_CHAT_ID    = os.environ.get("TG_CHAT_ID") or ""
 TG_BOT_TOKEN  = os.environ.get("TG_BOT_TOKEN") or ""
+NODE_LINK     = os.environ.get("NODE_LINK") or ""
 
 if not SESSION_TOKEN:
     print("❌ 未配置 SESSION_TOKEN，脚本终止。")
     sys.exit(1)
 
 AUTH_HEADER = {"Authorization": f"Bearer {SESSION_TOKEN}"}
+
+# 代理配置
+PROXIES = None
+if NODE_LINK:
+    PROXIES = {"http": "socks5://127.0.0.1:1080", "https": "socks5://127.0.0.1:1080"}
 
 # ------------------------------------------------------------
 # 辅助函数
@@ -85,7 +91,7 @@ def format_notification(status: str, bot_name: str, remaining: str, stop_at: str
 # ------------------------------------------------------------
 def get_user_info():
     print("👤 获取用户信息...")
-    resp = requests.get(f"{API_BASE}/auth/me", headers=AUTH_HEADER, timeout=10)
+    resp = requests.get(f"{API_BASE}/auth/me", headers=AUTH_HEADER, proxies=PROXIES, timeout=10)
     resp.raise_for_status()
     data = resp.json()
     print(f"   用户: {data.get('username')} (ID: {data.get('id')})")
@@ -96,7 +102,7 @@ def get_user_info():
 # ------------------------------------------------------------
 def get_bot_info(bot_id: int):
     print(f"🔍 获取 Bot {bot_id} 信息...")
-    resp = requests.get(f"{API_BASE}/bots/{bot_id}", headers=AUTH_HEADER, timeout=10)
+    resp = requests.get(f"{API_BASE}/bots/{bot_id}", headers=AUTH_HEADER, proxies=PROXIES, timeout=10)
     resp.raise_for_status()
     data = resp.json()
     timer = data.get("timer", {})
@@ -111,7 +117,7 @@ def get_bot_info(bot_id: int):
 # ------------------------------------------------------------
 def renew_bot(bot_id: int) -> dict:
     print(f"🔄 续期 Bot {bot_id}...")
-    resp = requests.post(f"{API_BASE}/bots/{bot_id}/renew", headers=AUTH_HEADER, timeout=10)
+    resp = requests.post(f"{API_BASE}/bots/{bot_id}/renew", headers=AUTH_HEADER, proxies=PROXIES, timeout=10)
     resp.raise_for_status()
     data = resp.json()
     timer = data.get("timer", {})

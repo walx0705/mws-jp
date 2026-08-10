@@ -20,6 +20,7 @@ MWS（cloud.puratya.com）Bot 自动续期脚本 + GitHub Actions 工作流。
 |--------|------|------|
 | `SESSION_TOKEN` | MWS Bearer Token | ✅ |
 | `GH_TOKEN` | GitHub PAT（用于清理记录） | ✅ |
+| `NODE_LINK` | Sing-box 代理节点链接 | ❌ |
 | `TG_BOT_TOKEN` | Telegram Bot Token | ❌ |
 | `TG_CHAT_ID` | Telegram Chat ID | ❌ |
 | `DISCORD_TOKEN` | Discord Token（用于重新授权） | ❌ |

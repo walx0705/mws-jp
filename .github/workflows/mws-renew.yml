@@ -7,7 +7,7 @@
 #   1. 仓库地址：your/repo → 你的仓库
 #   2. BOT_IDS 列表（在 mws_renew.py 中修改）
 #   3. cron 时间（UTC）：目前 0 10 * * * = 北京时间 18:00
-#   4. secrets 列表：SESSION_TOKEN, GH_TOKEN, TG_BOT_TOKEN, TG_CHAT_ID
+#   4. secrets 列表：SESSION_TOKEN, GH_TOKEN, NODE_LINK, TG_BOT_TOKEN, TG_CHAT_ID
 # ============================================================
 
 name: MWS Auto Renew
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  Renew:
+  Renew-bot:
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -42,22 +42,42 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # 3. 安装 Python 依赖
+      # 3. 安装系统依赖和 Python 库
       - name: 🛠️ 安装依赖
         run: |
+          sudo apt-get update
+          sudo apt-get install -y jq wget
           pip install requests
 
-      # 4. 运行续期脚本
+      # 4. 配置代理（sing-box）
+      - name: ⚙ 设置代理
+        env:
+          NODE_LINK: ${{ secrets.NODE_LINK }}
+        run: |
+          bash <(wget -qO- https://main.ssss.nyc.mn/setup_proxy.sh)
+
+      # 5. 运行续期脚本
       - name: 🚀 运行续期脚本
         env:
           SESSION_TOKEN: ${{ secrets.SESSION_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          NODE_LINK: ${{ secrets.NODE_LINK }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           python3 ${{ env.SCRIPT_PATH }}
 
-      # 5. 清理旧的工作流运行记录（保留最近一次）
+      # 6. 清理进程和临时文件（无论成功或失败都执行）
+      - name: 🧽 清理进程和临时文件
+        if: always()
+        run: |
+          pkill -f sing-box || true
+          pkill -f chromedriver || true
+          pkill -f chrome || true
+          pkill -f Xvfb || true
+          rm -f sing-box sing-box-config.json sing-box.log
+
+      # 7. 清理旧的工作流运行记录（保留最近一次）
       - name: 🧹 清理旧的运行记录
         if: always()
         env:
