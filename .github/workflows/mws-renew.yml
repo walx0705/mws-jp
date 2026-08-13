@@ -43,7 +43,7 @@ jobs:
             -H "Authorization: token ${{ secrets.GH_TOKEN }}" \
             "https://raw.githubusercontent.com/walx0705/Renewal-Collection/main/mws_renew.py"
 
-      # 4. 设置 Python 环境
+      # 3. 设置 Python 环境
       - name: ⚙ 设置 Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v6
         with:
