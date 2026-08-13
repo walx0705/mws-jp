@@ -5,6 +5,8 @@ MWS（cloud.puratya.com）Bot 自动续期脚本 + GitHub Actions 工作流。
 ## 功能
 
 - 🤖 每天定时续期 MWS Bot（北京时间 18:00）
+- ✅ **自动检测Bot状态**：检查运行/停止状态
+- ▶️ **自动启动Bot**：如果停止则自动启动
 - 🔄 支持手动触发
 - 📊 获取 Bot 状态、剩余时间
 - 📱 Telegram 通知（可选）

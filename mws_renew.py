@@ -127,39 +127,124 @@ def renew_bot(bot_id: int) -> dict:
     return data
 
 # ------------------------------------------------------------
+# 检查 Bot 状态
+# ------------------------------------------------------------
+def check_bot_status(bot_id: int) -> dict:
+    print(f"🔍 检查 Bot {bot_id} 状态...")
+    resp = requests.get(f"{API_BASE}/bots/{bot_id}", headers=AUTH_HEADER, proxies=PROXIES, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    status = data.get("status", "unknown")
+    print(f"   状态: {status}")
+    if status == "running":
+        print(f"   ✅ Bot 正在运行")
+    elif status == "stopped":
+        print(f"   ⚠️ Bot 已停止，需要启动")
+    return data
+
+# ------------------------------------------------------------
+# 启动 Bot
+# ------------------------------------------------------------
+def start_bot(bot_id: int) -> bool:
+    print(f"▶️ 启动 Bot {bot_id}...")
+    try:
+        resp = requests.post(f"{API_BASE}/bots/{bot_id}/start", headers=AUTH_HEADER, proxies=PROXIES, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        print(f"   ✅ 启动成功: {data.get('detail', 'ok')}")
+        return True
+    except Exception as e:
+        error_msg = str(e)
+        if "すでに起動中です" in error_msg or "already running" in error_msg.lower():
+            print(f"   ℹ️ Bot 已在运行中")
+            return True
+        else:
+            print(f"   ❌ 启动失败: {e}")
+            return False
+
+# ------------------------------------------------------------
+# 停止 Bot
+# ------------------------------------------------------------
+def stop_bot(bot_id: int) -> bool:
+    print(f"⏹️ 停止 Bot {bot_id}...")
+    try:
+        resp = requests.post(f"{API_BASE}/bots/{bot_id}/stop", headers=AUTH_HEADER, proxies=PROXIES, timeout=15)
+        resp.raise_for_status()
+        print(f"   ✅ 停止成功")
+        return True
+    except Exception as e:
+        print(f"   ❌ 停止失败: {e}")
+        return False
+
+# ------------------------------------------------------------
 # 主入口
 # ------------------------------------------------------------
 def main():
-    print("=" * 40)
-    print("  MWS Bot 自动续期")
-    print("=" * 40)
+    print("=" * 50)
+    print("  ☁️ MWS Bot 自动续期 & 状态检测")
+    print("=" * 50)
 
     try:
         user = get_user_info()
     except Exception as e:
         print(f"❌ 获取用户信息失败: {e}")
-        send_telegram(f"❌ MWS 续期失败\n无法获取用户信息: {e}")
+        send_telegram(f"❌ MWS 操作失败\n无法获取用户信息: {e}")
         sys.exit(1)
 
     results = []
+    all_started = True  # 跟踪是否有Bot启动成功
+    
     for bot_id in BOT_IDS:
         try:
-            bot_before = get_bot_info(bot_id)
-            result = renew_bot(bot_id)
-            bot_after = get_bot_info(bot_id)
+            # 1. 检查Bot状态
+            bot_info = check_bot_status(bot_id)
+            bot_name = bot_info.get("name", f"Bot-{bot_id}")
+            status = bot_info.get("status", "unknown")
+            timer = bot_info.get("timer", {})
+            
+            # 2. 如果Bot停止，自动启动
+            if status == "stopped":
+                print(f"   ⚠️ Bot {bot_name} 已停止，执行启动...")
+                started = start_bot(bot_id)
+                if not started:
+                    all_started = False
+                    # 启动失败，记录错误
+                    results.append({
+                        "name": bot_name,
+                        "status": "❌ 启动失败",
+                        "remaining": f"{timer.get('remaining_hours', 0)}h",
+                        "stop_at": timer.get("stop_at", "未知"),
+                    })
+                    continue
+                else:
+                    print(f"   ✅ Bot {bot_name} 启动成功!")
+            else:
+                print(f"   ℹ️ Bot {bot_name} 状态正常")
 
-            timer = result.get("timer", {})
+            # 3. 执行续期
+            print(f"🔄 续期 Bot {bot_id}...")
+            renew_resp = requests.post(f"{API_BASE}/bots/{bot_id}/renew", headers=AUTH_HEADER, proxies=PROXIES, timeout=10)
+            renew_resp.raise_for_status()
+            renew_data = renew_resp.json()
+            renew_timer = renew_data.get("timer", {})
+            print(f"   ✅ 续期成功!")
+            print(f"   剩余: {renew_timer.get('remaining_hours')}h / {renew_timer.get('remaining_seconds')}s")
+            print(f"   到期: {renew_timer.get('stop_at')}")
+
+            # 4. 再次检查状态确认
+            final_status = renew_data.get("status", status)
             results.append({
-                "name": bot_before.get("name", f"Bot-{bot_id}"),
-                "status": "✅ 续期成功",
-                "remaining": f"{timer.get('remaining_hours', 0)}h",
-                "stop_at": timer.get("stop_at", "未知"),
+                "name": bot_name,
+                "status": "✅ 运行中" if final_status == "running" else f"⚠️ {final_status}",
+                "remaining": f"{renew_timer.get('remaining_hours', 0)}h",
+                "stop_at": renew_timer.get("stop_at", "未知"),
             })
+            
         except Exception as e:
-            print(f"❌ Bot {bot_id} 续期失败: {e}")
+            print(f"❌ Bot {bot_id} 操作失败: {e}")
             results.append({
                 "name": f"Bot-{bot_id}",
-                "status": "❌ 续期失败",
+                "status": "❌ 操作失败",
                 "remaining": "N/A",
                 "stop_at": str(e)[:50],
             })
@@ -170,9 +255,14 @@ def main():
         send_telegram(msg)
 
     # 汇总
-    success = sum(1 for r in results if "成功" in r["status"])
+    success = sum(1 for r in results if "成功" in r["status"] or "运行中" in r["status"])
     fail = sum(1 for r in results if "失败" in r["status"])
     print(f"\n📊 汇总: {success} 成功, {fail} 失败, 共 {len(results)} 个 Bot")
+    
+    if all_started:
+        print("✅ 所有Bot操作完成")
+    else:
+        print("⚠️ 部分Bot操作失败")
 
 if __name__ == "__main__":
     main()
